@@ -1,102 +1,45 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
-      <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
+  <q-layout view="hHh lpR fFf">
+    <q-header class="bg-primary text-white">
+      <q-toolbar class="bg-primary text-white">
+        <q-btn no-caps flat label="Ceres" to="/" icon="public"/>
 
-        <q-toolbar-title>
-          Quasar App
-        </q-toolbar-title>
-
-        <div>Quasar v{{ $q.version }}</div>
+        <q-tabs v-model="tab" shrink no-caps @update:model-value="onTabChange">
+          <q-tab name="generate-meals" label="Generate Meals" />
+          <q-tab name="view-meals" label="View Meals" />
+        </q-tabs>
       </q-toolbar>
     </q-header>
 
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
-    </q-drawer>
-
-    <q-page-container>
-      <router-view />
-    </q-page-container>
+      <q-page-container class="main-page-container">
+        <router-view />
+      </q-page-container>
   </q-layout>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import EssentialLink from 'components/EssentialLink.vue'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
-const linksList = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
-  }
-]
+const router = useRouter();
+const route = useRoute();
+const tab = ref('');
 
-const leftDrawerOpen = ref(false)
+watch(() => route.path, (newPath) => {
+  if(newPath.includes('generate-meals')) tab.value = 'generate-meals';
+  else if(newPath.includes('view-meals')) tab.value = 'view-meals';
+  else tab.value = '';
+}, { immediate: true })
 
-function toggleLeftDrawer () {
-  leftDrawerOpen.value = !leftDrawerOpen.value
+const onTabChange = (newTab) => {
+  router.push(`/${newTab}`)
 }
 </script>
+
+<style scoped>
+.main-page-container {
+  padding: 16px 16px 16px;
+  margin-top: 16px;
+  box-sizing: border-box;
+}
+</style>
