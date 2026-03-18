@@ -45,11 +45,13 @@
         </q-td>
       </template>
     </q-table>
+    <!-- Generate Nutrient Profile -->
+    <q-btn color="primary" no-caps label="Generate Nutrient Profile" :disable="!canGenerate" v-on:click="onGenerate"/>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
 
 const USDA_API_KEY = import.meta.env.VITE_USDA_API_KEY || 'DEMO_KEY';
@@ -84,13 +86,18 @@ const selectColumns = [
   { name: 'grams', align: 'center', label: 'grams', field: 'grams' },
 ];
 
+// Generating Nutrient Profile
+const scaledIngredients = ref([]);
+
 const onSearch = () => {
-  const payload = {
+  const numResults = 200;
+  const searchFilters = {
     query: ingredientTextInput.value,
+    pageSize: numResults,
     dataType: [selectedOption.value],
   };
 
-  api.post(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}`, payload)
+  api.post(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}`, searchFilters)
     .then(response => {
       searchRows.value = response.data.foods.map(food => ({
         description: food.description,
@@ -108,7 +115,7 @@ const onSearch = () => {
       } else {
       console.error('Error:', error.message);
       }
-    });
+    })
 }
 
 const onSelect = (row) => {
@@ -116,9 +123,83 @@ const onSelect = (row) => {
     ingredient:  row.description,
     fdcId: row.fdcId,
     grams: null,
-  })
+  });
   searchRows.value = [];
+  ingredientTextInput.value = '';
+  selectedOption.value = '';
 }
+
+const scaleNutrients = (nutrientsToScale, gramScalar) => {
+  return nutrientsToScale.map((nutrient) => {
+    const amount = Number(nutrient.amount);
+
+    if (!Number.isFinite(amount)) {
+      return nutrient;
+    }
+
+    return {
+      ...nutrient,
+      amount: (amount / 100) * gramScalar,
+    };
+  })
+};
+
+const onGenerate = () => {
+  const foodsToFetch = {
+    fdcIds: selectRows.value.map(row => row.fdcId),
+  }
+
+  const gramsByFdcId = new Map(
+    selectRows.value.map(row => [row.fdcId, Number(row.grams)])
+  )
+
+  // TEST CASE (REMOVE LATER)
+  // {
+  // "fdcIds": [
+  //     2641085, Branded
+  //     1105314, Foundation
+  //     2501940 Branded
+  //   ]
+  // }
+
+  // TODO:
+  // - Handle the fact that some fdcIds aren't going to be present in the initial post response
+  //  - call the portal-data/external/{fdcId} method on each missing fdcId
+  //  - append the additional scaled ingredient to the scaledIngredients array
+
+  api.post(`https://api.nal.usda.gov/fdc/v1/foods?api_key=${USDA_API_KEY}`, foodsToFetch)
+  .then(response => {
+    scaledIngredients.value = response.data.map(ingredient => {
+      const grams = gramsByFdcId.get(ingredient.fdcId);
+
+      return {
+        ingredient: ingredient.description,
+        fdcId: ingredient.fdcId,
+        foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
+      };
+    })
+    console.log(scaledIngredients);
+  })
+  .catch(error => {
+    if (error.response) {
+    console.error('Server Error:', error.response.data);
+    } else if (error.request) {
+    console.error('No Response:', error.request);
+    } else {
+    console.error('Error:', error.message);
+    }
+  })
+}
+
+const canGenerate = computed(() => {
+  if (selectRows.value.length === 0) return false;
+
+  return selectRows.value.every((row) => {
+    const grams = Number(row.grams);
+    return Number.isFinite(grams) && grams > 0;
+  });
+})
+
 </script>
 
 <style scoped>
