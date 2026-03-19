@@ -163,12 +163,10 @@ const onGenerate = () => {
   // }
 
   // TODO:
-  // - Handle the fact that some fdcIds aren't going to be present in the initial post response
-  //  - call the portal-data/external/{fdcId} method on each missing fdcId
-  //  - append the additional scaled ingredient to the scaledIngredients array
-
+  // - Verify portal-data endpoint data is being scaled
+  
   api.post(`https://api.nal.usda.gov/fdc/v1/foods?api_key=${USDA_API_KEY}`, foodsToFetch)
-  .then(response => {
+  .then(async (response) => {
     scaledIngredients.value = response.data.map(ingredient => {
       const grams = gramsByFdcId.get(ingredient.fdcId);
 
@@ -178,7 +176,47 @@ const onGenerate = () => {
         foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
       };
     })
-    console.log(scaledIngredients);
+
+    const returnedFdcIds = new Set(
+      scaledIngredients.value.map((ingredient) => ingredient.fdcId)
+    );
+
+    const missingFdcIds = foodsToFetch.fdcIds.filter(
+      (fdcId) => !returnedFdcIds.has(fdcId)
+    );
+
+    if (missingFdcIds.length === 0) {
+      return;
+    }
+
+    const missingIngredients = await Promise.all(
+      missingFdcIds.map(async (fdcId) => {
+        try {
+          const response = await api.get(
+            `/usda-portal-data/external/${fdcId}`
+          );
+
+          const ingredient = response.data;
+          const grams = gramsByFdcId.get(fdcId);
+
+          return {
+            ingredient: ingredient.description,
+            fdcId: ingredient.fdcId || fdcId,
+            foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
+          };
+        } catch (error) {
+          console.error(`Failed to fetch missing fdcId ${fdcId}:`, error);
+          return null;
+        }
+      })
+    );
+
+    scaledIngredients.value = [
+      ...scaledIngredients.value,
+      ...missingIngredients.filter((ingredient) => ingredient !== null),
+    ];
+
+    console.log(aggregateIngredientData());
   })
   .catch(error => {
     if (error.response) {
@@ -199,6 +237,54 @@ const canGenerate = computed(() => {
     return Number.isFinite(grams) && grams > 0;
   });
 })
+
+const aggregateIngredientData = () => {
+  const totals = new Map();
+
+  for (const ingredient of scaledIngredients.value) {
+    for (const foodNutrient of ingredient.foodNutrients || []) {
+      const nutrient = foodNutrient.nutrient || {};
+
+      // Prefer id; fallback to number+unit if needed
+      const id = nutrient.id ?? null;
+      const number = nutrient.number ?? '';
+      const name = nutrient.name ?? '';
+      const unit =
+        nutrient.unitName ||
+        nutrient.nutrientUnit?.name ||
+        '';
+
+      if (!id && !number) continue;
+      if (!name) continue;
+
+      const nutrientQuantity = Number(
+        foodNutrient.amount ?? foodNutrient.value
+      );
+
+      if (!Number.isFinite(nutrientQuantity)) continue;
+
+      const key = id ? `id:${id}` : `num:${number}|unit:${unit}`;
+      const existing = totals.get(key);
+
+      if (!existing) {
+        totals.set(key, {
+          nutrientId: id,
+          nutrientNumber: number,
+          nutrientName: name,
+          unit,
+          rank: nutrient.rank ?? Number.MAX_SAFE_INTEGER,
+          total: nutrientQuantity
+        });
+      } else {
+        if (existing.unit === unit) {
+          existing.total += nutrientQuantity;
+        }
+      }
+    }
+  }
+
+  return [...totals.values()].sort((a, b) => a.rank - b.rank);
+};
 
 </script>
 

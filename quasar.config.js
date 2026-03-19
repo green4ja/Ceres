@@ -72,6 +72,14 @@ export default defineConfig((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
+      proxy: {
+        '/usda-portal-data': {
+          target: 'https://fdc.nal.usda.gov',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/usda-portal-data/, '/portal-data')
+        }
+      },
       // https: true,
       open: true // opens browser window automatically
     },
