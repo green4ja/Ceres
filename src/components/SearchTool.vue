@@ -3,18 +3,32 @@
     <!-- Top Interactions -->
     <div class="search-interactables">
       <q-input outlined v-model="ingredientTextInput" label="Ingredient" class="search-input" />
-      <q-select outlined v-model="selectedOption" :options="options" label="Search Type" class="search-select" />
-      <q-btn color="primary" no-caps label="Search" class="search-button" v-on:click="onSearch"/>
+      <q-select
+        outlined
+        v-model="selectedOption"
+        :options="searchOptions"
+        label="Search Type"
+        class="search-select"
+      />
+      <q-btn
+        color="primary"
+        no-caps
+        label="Search"
+        class="search-button"
+        :disable="!canSearch"
+        v-on:click="onSearch"
+      />
     </div>
     <!-- Search Results -->
     <q-table
-      flat bordered
+      flat
+      bordered
       title="Search Results"
       dense
       :rows="searchRows"
       :columns="searchColumns"
-      row-key="fdcId"
-      style="margin-top: 8px;"
+      row-key="id"
+      style="margin-top: 8px"
     >
       <template v-slot:body-cell-actions="props">
         <q-td :props="props">
@@ -24,29 +38,23 @@
     </q-table>
     <!-- Selected Ingredients -->
     <q-table
-      flat bordered
+      flat
+      bordered
       title="Selected Ingredients"
       dense
       :rows="selectRows"
       :columns="selectColumns"
-      row-key="fdcId"
-      style="margin-top: 8px;"
-    >
-      <template v-slot:body-cell-grams="props">
-        <q-td :props="props">
-          <q-input
-            outlined
-            dense
-            type="number"
-            min="0"
-            suffix="g"
-            v-model.number="props.row.grams"
-          />
-        </q-td>
-      </template>
-    </q-table>
+      row-key="id"
+      style="margin-top: 8px"
+    />
     <!-- Generate Nutrient Profile -->
-    <q-btn color="primary" no-caps label="Generate Nutrient Profile" :disable="!canGenerate" v-on:click="onGenerate"/>
+    <!-- <q-btn
+      color="primary"
+      no-caps
+      label="Generate Nutrient Profile"
+      :disable="!canGenerate"
+      v-on:click="onGenerate"
+    /> -->
   </div>
 </template>
 
@@ -54,238 +62,196 @@
 import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
 
-const USDA_API_KEY = import.meta.env.VITE_USDA_API_KEY || 'DEMO_KEY';
+const API_KEY = import.meta.env.VITE_SPOONACULAR_API_KEY
 
 // search-interactables
-const ingredientTextInput = ref('');
-const selectedOption = ref('');
-const options = [
-  'Branded',
-  'Survey (FNDDS)',
-  'SR Legacy',
-  'Foundation',
-  'Experimental',
-];
+const ingredientTextInput = ref('')
+const selectedOption = ref('')
+const searchOptions = ['Ingredient', 'Grocery Product']
 
 // Search Results q-table
-const searchRows = ref([]);
+const searchRows = ref([])
 const searchColumns = [
-  { name: 'description', align: 'left', label: 'description', field: 'description', sortable: true },
-  { name: 'fdcId', align: 'center', label: 'fdcId', field: 'fdcId', sortable: true },
-  { name: 'dataType', label: 'dataType', field: 'dataType', sortable: true },
-  { name: 'brandOwner', label: 'brandOwner', field: 'brandOwner', sortable: true },
-  { name: 'brandName', label: 'brandName', field: 'brandName', sortable: true },
+  {
+    name: 'name',
+    align: 'left',
+    label: 'name',
+    field: 'name',
+    sortable: true,
+  },
+  { name: 'id', align: 'center', label: 'id', field: 'id', sortable: true },
   { name: 'actions', align: 'center', label: '', field: 'actions' },
-];
+]
 
 // Selected Ingredients q-table
-const selectRows = ref([]);
+const selectRows = ref([])
 const selectColumns = [
-  { name: 'ingredient', align: 'left', label: 'ingredient', field: 'ingredient', sortable: true },
-  { name: 'fdcId', align: 'center', label: 'fdcId', field: 'fdcId', sortable: true },
-  { name: 'grams', align: 'center', label: 'grams', field: 'grams' },
-];
-
-// Generating Nutrient Profile
-const scaledIngredients = ref([]);
+  { name: 'name', align: 'left', label: 'name', field: 'name', sortable: true },
+  { name: 'id', align: 'center', label: 'id', field: 'id', sortable: true },
+]
 
 const onSearch = () => {
-  const numResults = 200;
-  const searchFilters = {
-    query: ingredientTextInput.value,
-    pageSize: numResults,
-    dataType: [selectedOption.value],
-  };
+  const numExpectedResults = 100 // (1-100)
+  const searchQuery = ingredientTextInput.value
 
-  api.post(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}`, searchFilters)
-    .then(response => {
-      searchRows.value = response.data.foods.map(food => ({
-        description: food.description,
-        fdcId: food.fdcId,
-        dataType: food.dataType,
-        brandOwner: food.brandOwner,
-        brandName: food.brandName,
-      }))
-    })
-    .catch(error => {
-      if (error.response) {
-      console.error('Server Error:', error.response.data);
-      } else if (error.request) {
-      console.error('No Response:', error.request);
-      } else {
-      console.error('Error:', error.message);
-      }
-    })
+  if (selectedOption.value == 'Grocery Product') {
+    api
+      .get('https://api.spoonacular.com/food/products/search', {
+        params: {
+          apiKey: API_KEY,
+          query: searchQuery,
+          number: numExpectedResults,
+        },
+      })
+      .then((response) => {
+        searchRows.value = response.data.products.map((product) => ({
+          name: product.title,
+          id: product.id,
+        }))
+      })
+      .catch((error) => {
+        if (error.response) {
+          console.error('Server Error:', error.response.data)
+        } else if (error.request) {
+          console.error('No Response:', error.request)
+        } else {
+          console.error('Error:', error.message)
+        }
+      })
+  } else {
+    // 'Ingredient'
+    const searchSort = 'calories' // (https://spoonacular.com/food-api/docs#Recipe-Sorting-Options)
+    const searchSortDirection = 'desc' // 'asc' or 'desc'
+
+    api
+      .get('https://api.spoonacular.com/food/ingredients/search', {
+        params: {
+          apiKey: API_KEY,
+          query: searchQuery,
+          number: numExpectedResults,
+          sort: searchSort,
+          sortDirection: searchSortDirection,
+        },
+      })
+      .then((response) => {
+        searchRows.value = response.data.results.map((result) => ({
+          name: result.name,
+          id: result.id,
+        }))
+      })
+      .catch((error) => {
+        if (error.response) {
+          console.error('Server Error:', error.response.data)
+        } else if (error.request) {
+          console.error('No Response:', error.request)
+        } else {
+          console.error('Error:', error.message)
+        }
+      })
+  }
 }
 
 const onSelect = (row) => {
   selectRows.value.push({
-    ingredient:  row.description,
-    fdcId: row.fdcId,
-    grams: null,
-  });
-  searchRows.value = [];
-  ingredientTextInput.value = '';
-  selectedOption.value = '';
+    name: row.name,
+    id: row.id,
+  })
+
+  searchRows.value = []
+  ingredientTextInput.value = ''
+  selectedOption.value = ''
 }
 
-const scaleNutrients = (nutrientsToScale, gramScalar) => {
-  return nutrientsToScale.map((nutrient) => {
-    const amount = Number(nutrient.amount);
+// const onGenerate = () => {
+//   const foodsToFetch = {
+//     fdcIds: selectRows.value.map((row) => row.fdcId),
+//   }
 
-    if (!Number.isFinite(amount)) {
-      return nutrient;
-    }
+//   const gramsByFdcId = new Map(selectRows.value.map((row) => [row.fdcId, Number(row.grams)]))
 
-    return {
-      ...nutrient,
-      amount: (amount / 100) * gramScalar,
-    };
-  })
-};
+//   // TEST CASE (REMOVE LATER)
+//   // {
+//   // "fdcIds": [
+//   //     2641085, Branded
+//   //     1105314, Foundation
+//   //     2501940 Branded
+//   //   ]
+//   // }
 
-const onGenerate = () => {
-  const foodsToFetch = {
-    fdcIds: selectRows.value.map(row => row.fdcId),
-  }
+//   // TODO:
+//   // - Verify portal-data endpoint data is being scaled
 
-  const gramsByFdcId = new Map(
-    selectRows.value.map(row => [row.fdcId, Number(row.grams)])
-  )
+//   api
+//     .post(`https://api.nal.usda.gov/fdc/v1/foods?api_key=${API_KEY}`, foodsToFetch)
+//     .then(async (response) => {
+//       scaledIngredients.value = response.data.map((ingredient) => {
+//         const grams = gramsByFdcId.get(ingredient.fdcId)
 
-  // TEST CASE (REMOVE LATER)
-  // {
-  // "fdcIds": [
-  //     2641085, Branded
-  //     1105314, Foundation
-  //     2501940 Branded
-  //   ]
-  // }
+//         return {
+//           ingredient: ingredient.description,
+//           fdcId: ingredient.fdcId,
+//           foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
+//         }
+//       })
 
-  // TODO:
-  // - Verify portal-data endpoint data is being scaled
-  
-  api.post(`https://api.nal.usda.gov/fdc/v1/foods?api_key=${USDA_API_KEY}`, foodsToFetch)
-  .then(async (response) => {
-    scaledIngredients.value = response.data.map(ingredient => {
-      const grams = gramsByFdcId.get(ingredient.fdcId);
+//       const returnedFdcIds = new Set(scaledIngredients.value.map((ingredient) => ingredient.fdcId))
 
-      return {
-        ingredient: ingredient.description,
-        fdcId: ingredient.fdcId,
-        foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
-      };
-    })
+//       const missingFdcIds = foodsToFetch.fdcIds.filter((fdcId) => !returnedFdcIds.has(fdcId))
 
-    const returnedFdcIds = new Set(
-      scaledIngredients.value.map((ingredient) => ingredient.fdcId)
-    );
+//       if (missingFdcIds.length === 0) {
+//         return
+//       }
 
-    const missingFdcIds = foodsToFetch.fdcIds.filter(
-      (fdcId) => !returnedFdcIds.has(fdcId)
-    );
+//       const missingIngredients = await Promise.all(
+//         missingFdcIds.map(async (fdcId) => {
+//           try {
+//             const response = await api.get(`/usda-portal-data/external/${fdcId}`)
 
-    if (missingFdcIds.length === 0) {
-      return;
-    }
+//             const ingredient = response.data
+//             const grams = gramsByFdcId.get(fdcId)
 
-    const missingIngredients = await Promise.all(
-      missingFdcIds.map(async (fdcId) => {
-        try {
-          const response = await api.get(
-            `/usda-portal-data/external/${fdcId}`
-          );
+//             return {
+//               ingredient: ingredient.description,
+//               fdcId: ingredient.fdcId || fdcId,
+//               foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
+//             }
+//           } catch (error) {
+//             console.error(`Failed to fetch missing fdcId ${fdcId}:`, error)
+//             return null
+//           }
+//         }),
+//       )
 
-          const ingredient = response.data;
-          const grams = gramsByFdcId.get(fdcId);
+//       scaledIngredients.value = [
+//         ...scaledIngredients.value,
+//         ...missingIngredients.filter((ingredient) => ingredient !== null),
+//       ]
 
-          return {
-            ingredient: ingredient.description,
-            fdcId: ingredient.fdcId || fdcId,
-            foodNutrients: scaleNutrients(ingredient.foodNutrients || [], grams),
-          };
-        } catch (error) {
-          console.error(`Failed to fetch missing fdcId ${fdcId}:`, error);
-          return null;
-        }
-      })
-    );
+//       console.log(aggregateIngredientData())
+//     })
+//     .catch((error) => {
+//       if (error.response) {
+//         console.error('Server Error:', error.response.data)
+//       } else if (error.request) {
+//         console.error('No Response:', error.request)
+//       } else {
+//         console.error('Error:', error.message)
+//       }
+//     })
+// }
 
-    scaledIngredients.value = [
-      ...scaledIngredients.value,
-      ...missingIngredients.filter((ingredient) => ingredient !== null),
-    ];
+// const canGenerate = computed(() => {
+//   if (selectRows.value.length === 0) return false
 
-    console.log(aggregateIngredientData());
-  })
-  .catch(error => {
-    if (error.response) {
-    console.error('Server Error:', error.response.data);
-    } else if (error.request) {
-    console.error('No Response:', error.request);
-    } else {
-    console.error('Error:', error.message);
-    }
-  })
-}
+//   return selectRows.value.every((row) => {
+//     const grams = Number(row.grams)
+//     return Number.isFinite(grams) && grams > 0
+//   })
+// })
 
-const canGenerate = computed(() => {
-  if (selectRows.value.length === 0) return false;
-
-  return selectRows.value.every((row) => {
-    const grams = Number(row.grams);
-    return Number.isFinite(grams) && grams > 0;
-  });
+const canSearch = computed(() => {
+  return ingredientTextInput.value.trim().length > 0 && Boolean(selectedOption.value)
 })
-
-const aggregateIngredientData = () => {
-  const totals = new Map();
-
-  for (const ingredient of scaledIngredients.value) {
-    for (const foodNutrient of ingredient.foodNutrients || []) {
-      const nutrient = foodNutrient.nutrient || {};
-
-      // Prefer id; fallback to number+unit if needed
-      const id = nutrient.id ?? null;
-      const number = nutrient.number ?? '';
-      const name = nutrient.name ?? '';
-      const unit =
-        nutrient.unitName ||
-        nutrient.nutrientUnit?.name ||
-        '';
-
-      if (!id && !number) continue;
-      if (!name) continue;
-
-      const nutrientQuantity = Number(
-        foodNutrient.amount ?? foodNutrient.value
-      );
-
-      if (!Number.isFinite(nutrientQuantity)) continue;
-
-      const key = id ? `id:${id}` : `num:${number}|unit:${unit}`;
-      const existing = totals.get(key);
-
-      if (!existing) {
-        totals.set(key, {
-          nutrientId: id,
-          nutrientNumber: number,
-          nutrientName: name,
-          unit,
-          rank: nutrient.rank ?? Number.MAX_SAFE_INTEGER,
-          total: nutrientQuantity
-        });
-      } else {
-        if (existing.unit === unit) {
-          existing.total += nutrientQuantity;
-        }
-      }
-    }
-  }
-
-  return [...totals.values()].sort((a, b) => a.rank - b.rank);
-};
-
 </script>
 
 <style scoped>
