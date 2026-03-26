@@ -46,15 +46,28 @@
       :columns="selectColumns"
       row-key="id"
       style="margin-top: 8px"
-    />
+    >
+      <template v-slot:body-cell-grams="props">
+        <q-td :props="props">
+          <q-input
+            outlined
+            dense
+            type="number"
+            min="0"
+            suffix="g"
+            v-model.number="props.row.grams"
+          />
+        </q-td>
+      </template>
+    </q-table>
     <!-- Generate Nutrient Profile -->
-    <!-- <q-btn
+    <q-btn
       color="primary"
       no-caps
       label="Generate Nutrient Profile"
       :disable="!canGenerate"
       v-on:click="onGenerate"
-    /> -->
+    />
   </div>
 </template>
 
@@ -88,6 +101,7 @@ const selectRows = ref([])
 const selectColumns = [
   { name: 'name', align: 'left', label: 'name', field: 'name', sortable: true },
   { name: 'id', align: 'center', label: 'id', field: 'id', sortable: true },
+  { name: 'grams', align: 'center', label: 'grams', field: 'grams' },
 ]
 
 const onSearch = () => {
@@ -160,6 +174,14 @@ const onSelect = (row) => {
   searchRows.value = []
   ingredientTextInput.value = ''
   selectedOption.value = ''
+}
+
+const onGenerate = () => {
+  const ingredientsToFetch = selectRows.value.map((row) => row.id)
+
+  for (const ingredient of ingredientsToFetch) {
+    console.log(ingredient)
+  }
 }
 
 // const onGenerate = () => {
@@ -240,14 +262,14 @@ const onSelect = (row) => {
 //     })
 // }
 
-// const canGenerate = computed(() => {
-//   if (selectRows.value.length === 0) return false
+const canGenerate = computed(() => {
+  if (selectRows.value.length === 0) return false
 
-//   return selectRows.value.every((row) => {
-//     const grams = Number(row.grams)
-//     return Number.isFinite(grams) && grams > 0
-//   })
-// })
+  return selectRows.value.every((row) => {
+    const grams = Number(row.grams)
+    return Number.isFinite(grams) && grams > 0
+  })
+})
 
 const canSearch = computed(() => {
   return ingredientTextInput.value.trim().length > 0 && Boolean(selectedOption.value)
