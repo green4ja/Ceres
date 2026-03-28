@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
-    <SearchTool />
-    <NutrientProfile />
+    <SearchTool @profile-generated="onProfileGenerated" />
+    <NutrientProfile :profile-data="nutrientProfileData" />
   </div>
 </template>
 
@@ -12,10 +12,16 @@
   gap: 8px;
   align-items: flex-end;
 }
-
 </style>
 
 <script setup>
-import NutrientProfile from 'src/components/NutrientProfile.vue';
-import SearchTool from 'src/components/SearchTool.vue';
+import { ref } from 'vue'
+import NutrientProfile from 'src/components/NutrientProfile.vue'
+import SearchTool from 'src/components/SearchTool.vue'
+
+const nutrientProfileData = ref([])
+
+const onProfileGenerated = (data) => {
+  nutrientProfileData.value = data
+}
 </script>
